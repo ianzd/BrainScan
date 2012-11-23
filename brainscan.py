@@ -302,9 +302,9 @@ class BrainScan(object):
   def doAllAxisTests(self, target):
     sleep(0.1)
     for axis in [BW_X_AXIS, BW_Y_AXIS, BW_Z_AXIS, BW_E_AXIS]:
-      self.testAxis(target, axis)
+      self.testAxis(target, axis, direction=CW)
       sleep(0.1)
-      #testAxis(self, target, axis, attenuate=False, direction=CW)
+      self.testAxis(target, axis, direction=CCW)
 
     
   
