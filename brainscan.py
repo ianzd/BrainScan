@@ -297,17 +297,24 @@ class BrainScan(object):
     print "endstop output, sense: %s" % target.readEndstop(axis)
     endstop.write(1)
     print "endstop write, sense: %s" % target.readEndstop(axis)
+
+
+  def doAllAxisTests(self, target):
+    sleep(0.1)
+    for axis in [BW_X_AXIS, BW_Y_AXIS, BW_Z_AXIS, BW_E_AXIS]:
+      self.testAxis(target, axis)
+      sleep(0.1)
+      #testAxis(self, target, axis, attenuate=False, direction=CW)
+
     
   
-  def testAxis(self, target, axis):
-    #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
+  def testAxis(self, target, axis, attenuate=False, direction=CW): #(step, direction, enable, attenuate, endstop, coil_a, coil_b, name) = axis
     print "Testing %s Axis" % axis[NAME]
     target.disableAxis(axis)
     (coil_a, coil_b) = self.readAxisCurrent(axis)
     if coil_a > 0.01:
       raise BrainScanTestFailure("%s axis coil A non-zero" % axis[NAME])
-    if coil_b > 0.01:
-      raise BrainScanTestFailure("%s axis coil B non-zero" % axis[NAME])
+    if coil_b > 0.01: raise BrainScanTestFailure("%s axis coil B non-zero" % axis[NAME])
     
     # Single step mode (CW):
     phases = { 0: (-1,  1), (-1,  1): 0,
@@ -326,11 +333,15 @@ class BrainScan(object):
       start = phases[(math.copysign(1, coil_a), math.copysign(1, coil_b))]
       errors = 0
 
-      for step in range(start, start + 16):
+      steps = {}
+      steps[CW] = range(start, start + 16)
+      steps[CCW] = range(start, start - 16, -1)
+
+      for step in steps[direction]:
         print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
         if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
           errors += 1
-        target.stepAxis(axis, CW)
+        target.stepAxis(axis, direction)
         sleep(0.1)
         (coil_a, coil_b) = self.readAxisCurrent(axis)
         if ( (coil_a > 0.7) or (coil_b > 0.7) ):
@@ -339,20 +350,8 @@ class BrainScan(object):
       if errors > 0:
         raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
 
-      # TODO: test reverse direction
-      for step in range(start, start - 16, -1):
-        print "step %s: (%s, %s) = %s" % (step, coil_a, coil_b, phases[step % 4])
-        if (math.copysign(1, coil_a), math.copysign(1, coil_b)) != phases[step % 4]:
-          errors += 1
-        target.stepAxis(axis, CCW)
-        sleep(0.1)
-        (coil_a, coil_b) = self.readAxisCurrent(axis)
-        if ( (coil_a > 0.7) or (coil_b > 0.7) ):
-          raise BrainScanTestFailure("%s axis current too high! %s %s" % axis[NAME], coil_a, coil_b)
-      print "Errors: %s" % errors
-      if errors > 0:
-        raise BrainScanTestFailure("%s axis failed step test" % axis[NAME])
-      # TODO: test attenuation        
+      # Test attenuation        
+      
       
     finally:
       target.disableAxis(axis)
@@ -383,14 +382,7 @@ class BrainScan(object):
     if bed_current < 10:
       raise BrainScanTestFailure("bed current too low: %s" % bed_current)
       
-    sleep(0.1)
-    self.testAxis(target, BW_X_AXIS)
-    sleep(0.1)
-    self.testAxis(target, BW_Y_AXIS)
-    sleep(0.1)
-    self.testAxis(target, BW_Z_AXIS)
-    sleep(0.1)
-    self.testAxis(target, BW_E_AXIS)
+    self.doAllAxisTests(target)
 
     target.assertExtruderHeat(True)
     sleep(0.1)
